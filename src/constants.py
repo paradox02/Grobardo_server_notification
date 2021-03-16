@@ -4,6 +4,7 @@ from enum import Enum
 class NotificationType(Enum):
     NEW_MESSAGE = "new_message"
     NEW_ROOM = "Nova mistnost"
+    DELETED_DEVICE = "Odstranene zariadenie"
 
 
 class Language(Enum):
