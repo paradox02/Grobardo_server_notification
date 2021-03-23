@@ -1,19 +1,22 @@
-from flask import Flask, request, Response
-from firebase_admin import messaging, credentials, initialize_app
-from os import path
-import sys
 import logging
+import sys
+from os import path
+
+from firebase_admin import messaging, credentials, initialize_app
+from flask import Flask, request, Response
+
 from constants import TOKEN_PATH, NotificationType, PORT, Language
 
 server = Flask(__name__)
 
 
-def _base_send(n_type, n_text, tokens):
+def _base_send(n_type_value, n_text, tokens, n_type):
     if not isinstance(tokens, list):
         tokens = [tokens]
+    name = n_type.name
     message = messaging.MulticastMessage(
-        notification=messaging.Notification(title=n_type, body=n_text),
-        data=dict(title=n_type, body=n_type),
+        notification=messaging.Notification(title=n_type_value, body=n_text),
+        data=dict(title=n_type_value, body=n_type_value, notifType=name),
         tokens=tokens,
     )
     return messaging.send_multicast(message)
@@ -23,7 +26,8 @@ def _base_send(n_type, n_text, tokens):
 def send_notification():
     data = request.json
     try:
-        notif_type = NotificationType[data.get('type')].value
+        notif_type = NotificationType[data.get('type')]
+        notif_type_value = notif_type.value
     except ValueError:
         return Response(f"{data.get('type')} is unrecognized as notification type", status=404,
                         mimetype='application/json')
@@ -34,7 +38,7 @@ def send_notification():
         language = Language.EN.value
     if not fib_tokens:
         return Response("No FIB tokens provided", status=404, mimetype='application/json')
-    response = _base_send(notif_type, notif_text, fib_tokens)
+    response = _base_send(notif_type_value, notif_text, fib_tokens, notif_type)
     if response.failure_count > 0:
         responses = response.responses
         failed_tokens = []
@@ -43,8 +47,8 @@ def send_notification():
                 # repeat up to 3 times
                 re_send = False
                 for x in range(3):
-                    logging.info(f"{x+1}: Retrying sending to token {fib_tokens[idx]}")
-                    response = _base_send(notif_type, notif_text, fib_tokens[idx])
+                    logging.info(f"{x + 1}: Retrying sending to token {fib_tokens[idx]}")
+                    response = _base_send(notif_type_value, notif_text, fib_tokens[idx], notif_type)
                     if not response.failure_count:
                         logging.info(f"Retry send successful")
                         re_send = True
